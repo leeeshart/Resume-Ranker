@@ -7,20 +7,55 @@ import json
 from resume_parser import ResumeParser
 from job_analyzer import JobAnalyzer
 from scoring_engine import ScoringEngine
-from postgres_database import PostgreSQLDatabase as Database
+import os
+
+# Database fallback logic
+try:
+    if os.getenv("DATABASE_URL"):
+        from postgres_database import PostgreSQLDatabase as Database
+        DATABASE_TYPE = "postgresql"
+    else:
+        from database import Database
+        DATABASE_TYPE = "sqlite"
+except ImportError as e:
+    # Fallback to SQLite if PostgreSQL dependencies are missing
+    from database import Database
+    DATABASE_TYPE = "sqlite"
+    if os.getenv("DATABASE_URL"):
+        st.warning("PostgreSQL dependencies not available. Falling back to SQLite database.")
 from utils import format_score, get_verdict_color
 from email_notifications import EmailNotifier
 import zipfile
 import io
 
-# Initialize components
+# Initialize components with error handling
 @st.cache_resource
 def init_components():
     parser = ResumeParser()
     analyzer = JobAnalyzer()
     scorer = ScoringEngine()
-    db = Database()
-    return parser, analyzer, scorer, db
+    
+    # Initialize database with error handling
+    try:
+        db = Database()
+        # Test database connection
+        db.get_dashboard_stats()
+        return parser, analyzer, scorer, db
+    except Exception as e:
+        st.error(f"Database connection failed: {str(e)}")
+        if DATABASE_TYPE == "postgresql":
+            st.info("Trying to fallback to SQLite database...")
+            try:
+                from database import Database as SQLiteDatabase
+                db = SQLiteDatabase()
+                st.success("Successfully connected to SQLite database.")
+                return parser, analyzer, scorer, db
+            except Exception as sqlite_error:
+                st.error(f"SQLite fallback also failed: {str(sqlite_error)}")
+                st.stop()
+        else:
+            st.error("Please check your database configuration.")
+            st.stop()
 
 def main():
     st.set_page_config(
@@ -33,6 +68,12 @@ def main():
     
     st.title("📋 Automated Resume Relevance Check System")
     st.markdown("### Innomatics Research Labs - Placement Team Dashboard")
+    
+    # Database status indicator
+    if DATABASE_TYPE == "postgresql":
+        st.sidebar.success("🗄️ PostgreSQL Connected")
+    else:
+        st.sidebar.info("🗄️ SQLite Connected")
     
     # Sidebar navigation
     st.sidebar.title("Navigation")
