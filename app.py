@@ -55,12 +55,6 @@ def main():
         analytics_page(db)
     elif page == "Team Alerts":
         team_alerts_page(db)
-        
-        if __name__ == "__main__":
-    import streamlit as st
-    st.set_option('server.address', '0.0.0.0')
-    st.set_option('server.port', 5000)
-    st.run('app.py')
 
 def job_management_page(analyzer, db):
     st.header("📄 Job Description Management")
